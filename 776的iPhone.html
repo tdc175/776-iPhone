@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>资产看板 - 整数版</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .iphone-card {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s ease;
+      }
+      .progress-bar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background-color: rgba(16, 185, 129, 0.12);
+        z-index: 0;
+        transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .unlocked .progress-bar {
+        background-color: rgba(16, 185, 129, 0.2);
+      }
+      .iphone-card-content {
+        position: relative;
+        z-index: 10;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .unlocked {
+        border: 1px solid #10b981;
+        background: #f0fdf4;
+      }
+      .locked {
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 min-h-screen">
+    <div id="app" class="max-w-md mx-auto p-4 pb-24">
+      
+      <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-2xl p-6 text-white shadow-lg mb-6">
+        <h2 class="text-xs opacity-80 mb-1">总资产折合 (CNY)</h2>
+        <div class="text-4xl font-bold mb-4">
+          ¥ {{ Math.floor(totalCNY) }}
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-black/10 rounded-xl p-2 px-3 border border-white/10">
+            <p class="text-[10px] opacity-70 mb-0.5">币安人生 (322.6)</p>
+            <p class="font-bold text-base">¥{{ Math.floor(price1 * balance1 * rate) }}</p>
+          </div>
+          <div class="bg-black/10 rounded-xl p-2 px-3 border border-white/10">
+            <p class="text-[10px] opacity-70 mb-0.5">哈基米 (1485.5)</p>
+            <p class="font-bold text-base">¥{{ Math.floor(price2 * balance2 * rate) }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex justify-between items-center mb-3 px-1">
+          <h3 class="text-gray-700 font-bold">目标进度</h3>
+          <span class="text-[10px] text-gray-400 font-mono">汇率: {{rate}}</span>
+        </div>
+        
+        <div
+          v-for="phone in iphoneList"
+          :key="phone.name"
+          :class="['iphone-card p-4 rounded-xl shadow-sm', totalCNY >= phone.price ? 'unlocked' : 'locked']"
+        >
+          <div class="progress-bar" :style="{ width: Math.min((totalCNY / phone.price) * 100, 100) + '%' }"></div>
+          
+          <div class="iphone-card-content">
+            <div>
+              <div class="font-bold text-gray-800">{{ phone.name }}</div>
+              <div class="text-[10px] text-gray-400 tracking-wider">{{ phone.spec }}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-gray-900">¥{{ phone.price }}</div>
+              <div v-if="totalCNY >= phone.price" class="text-[10px] font-bold text-emerald-600">已解锁</div>
+              <div v-else class="text-[10px] text-gray-400">
+                {{ Math.floor((totalCNY / phone.price) * 100) }}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        @click="fetchData"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-yellow-500 text-white px-12 py-3 rounded-full shadow-xl active:scale-95 active:bg-yellow-600 transition-all font-bold text-sm"
+      >
+        刷新行情
+      </button>
+    </div>
+
+    <script>
+      const { createApp, ref, computed, onMounted } = Vue;
+
+      createApp({
+        setup() {
+          const balance1 = 322.6;
+          const balance2 = 1485.5;
+          const rate = 6.97;
+
+          const price1 = ref(0);
+          const price2 = ref(0);
+
+          const iphoneList = [
+            { name: "iPhone 15", spec: "128GB", price: 3799 },
+            { name: "iPhone 16", spec: "128GB", price: 4999 },
+            { name: "iPhone 16 Pro", spec: "128GB", price: 5819 },
+            { name: "iPhone 17", spec: "256GB", price: 5999 },
+            { name: "iPhone 17 Pro", spec: "256GB", price: 8999 },
+          ].sort((a, b) => a.price - b.price);
+
+          const fetchData = async () => {
+            try {
+              const [res1, res2] = await Promise.all([
+                fetch("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%E5%B8%81%E5%AE%89%E4%BA%BA%E7%94%9FUSDT"),
+                fetch("https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines?interval=1s&limit=2&symbol=ALPHA_426USDT")
+              ]);
+              
+              const data1 = await res1.json();
+              const data2 = await res2.json();
+
+              price1.value = parseFloat(data1.markPrice);
+              price2.value = parseFloat(data2.data[0][1]);
+            } catch (error) {
+              console.error("行情获取失败");
+            }
+          };
+
+          const totalCNY = computed(() => {
+            const val1 = balance1 * price1.value;
+            const val2 = balance2 * price2.value;
+            return (val1 + val2) * rate;
+          });
+
+          onMounted(fetchData);
+
+          return { balance1, balance2, price1, price2, rate, totalCNY, iphoneList, fetchData };
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>
